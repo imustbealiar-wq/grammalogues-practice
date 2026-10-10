@@ -49,7 +49,40 @@
   function showVolumes(){stopTimer();showOnly('volumes');}
   function showVolume(v){currentVolume=v;const first=firstNumber(v),last=first+PER_VOLUME-1;$('volumeTitle').textContent=`Kailash Chandra-V${v}`;$('volumeRange').textContent=`Transcriptions ${first}–${last}`;transcriptionGrid.replaceChildren();for(let local=1;local<=PER_VOLUME;local++){const n=first+local-1,b=document.createElement('button');b.type='button';b.className='trans-btn';const title=document.createElement('span');title.className='volume-label';title.textContent=`Transcription ${n}`;const detail=document.createElement('span');detail.className='range';detail.textContent=`KC-V${v} · No. ${local} in this volume`;b.append(title,detail);b.addEventListener('click',()=>openTest(v,local,n));transcriptionGrid.appendChild(b);}showOnly('transcriptions');}
   function renderVolumes(){for(let v=1;v<=TOTAL_VOLUMES;v++){const first=firstNumber(v),last=first+PER_VOLUME-1,b=document.createElement('button');b.type='button';const title=document.createElement('span');title.className='volume-label';title.textContent=`KC-V${v}`;const range=document.createElement('span');range.className='range';range.textContent=`Transcriptions ${first}–${last}`;b.append(title,range);b.setAttribute('aria-label',`Kailash Chandra Volume ${v}, transcriptions ${first} to ${last}`);b.addEventListener('click',()=>showVolume(v));volumeGrid.appendChild(b);}}
-  function openTest(v,local,n){stopTimer();currentVolume=v;currentLocal=local;currentGlobal=n;finished=false;running=false;startedAt=null;elapsedBeforePause=0;const cfg=TRANSCRIPTION_CONFIG[n]||{};const minutes=Number(cfg.minutes)||DEFAULT_MINUTES;$('testTitle').textContent=`Transcription ${n}`;$('testSubtitle').textContent=`Kailash Chandra-V${v} · No. ${local} in this volume`;$('durationInput').value=minutes;$('typingArea').value='';$('typingArea').readOnly=true;$('resultBox').hidden=true;$('masterSection').hidden=true;$('audioPlayer').pause();$('audioPlayer').src=audioFile(n);$('audioPlayer').load();$('audioPath').textContent=`Expected file: ${audioFile(n)}`;$('audioMessage').textContent='If the audio does not play, make sure this MP3 file has been uploaded to the audio folder with the exact filename shown below.';$('testState').textContent='Ready to start';$('startButton').disabled=false;$('pauseButton').disabled=true;$('submitButton').disabled=true;secondsLeft=Math.max(1,minutes)*60;updateStats();showOnly('test');}
+  function openTest(v,local,n){stopTimer();currentVolume=v;currentLocal=local;currentGlobal=n;finished=false;running=false;startedAt=null;elapsedBeforePause=0;const cfg=TRANSCRIPTION_CONFIG[n]||{};const minutes=Number(cfg.minutes)||DEFAULT_MINUTES;$('testTitle').textContent=`Transcription ${n}`;$('testSubtitle').textContent=`Kailash Chandra-V${v} · No. ${local} in this volume`;$('durationInput').value=minutes;$('typingArea').value='';$('typingArea').readOnly=true;$('resultBox').hidden=true;$('masterSection').hidden=true;const player = $('audioPlayer');
+player.pause();
+player.removeAttribute('src');
+player.load();
+
+$('audioMessage').textContent = 'Loading dictation audio...';
+
+fetch('https://crepqbceahkaiafbrgbn.supabase.co/functions/v1/get-dictation', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'apikey': 'sb_publishable_0_QVQCM1OAvXqpgfLbuFDw_H4pq3RbQ'
+  },
+  body: JSON.stringify({
+    volume_number: v,
+    transcription_number: local
+  })
+})
+.then(async response => {
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Could not load audio');
+  }
+  if (!data.audio_url) {
+    throw new Error('Audio URL was not returned');
+  }
+  player.src = data.audio_url;
+  player.load();
+  $('audioMessage').textContent = 'Audio ready. Press Start when you are ready.';
+})
+.catch(error => {
+  console.error('Audio loading error:', error);
+  $('audioMessage').textContent = 'Audio could not be loaded. Please try again.';
+});$('audioPath').textContent=`Expected file: ${audioFile(n)}`;$('audioMessage').textContent='If the audio does not play, make sure this MP3 file has been uploaded to the audio folder with the exact filename shown below.';$('testState').textContent='Ready to start';$('startButton').disabled=false;$('pauseButton').disabled=true;$('submitButton').disabled=true;secondsLeft=Math.max(1,minutes)*60;updateStats();showOnly('test');}
   function updateStats(){const mins=Math.max(1,Number($('durationInput').value)||DEFAULT_MINUTES);$('timer').textContent=`${pad(Math.floor(secondsLeft/60))}:${pad(secondsLeft%60)}`;const text=$('typingArea').value.trim();const words=text?text.split(/\s+/).length:0;$('wordCount').textContent=words;const elapsed=startedAt?Math.max(1,Math.floor((Date.now()-startedAt)/1000)):0;$('wpm').textContent=elapsed?Math.round(words/(elapsed/60)):0;}
   function startTest(){if(finished||running)return;const mins=Math.min(60,Math.max(1,Number($('durationInput').value)||DEFAULT_MINUTES));secondsLeft=Math.min(secondsLeft,mins*60);if(!startedAt)startedAt=Date.now()-elapsedBeforePause*1000;running=true;$('typingArea').readOnly=false;$('typingArea').focus();$('testState').textContent='Test in progress';$('startButton').disabled=true;$('pauseButton').disabled=false;$('submitButton').disabled=false;timerId=setInterval(()=>{if(!running)return;secondsLeft--;updateStats();if(secondsLeft<=0){secondsLeft=0;updateStats();finishTest(true);}},1000);}
   function pauseTest(){if(!running)return;elapsedBeforePause=startedAt?Math.floor((Date.now()-startedAt)/1000):0;stopTimer();$('testState').textContent='Paused';$('startButton').disabled=false;$('startButton').textContent='Resume Test';$('pauseButton').disabled=true;}

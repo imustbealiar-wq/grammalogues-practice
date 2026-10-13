@@ -56,10 +56,11 @@ const response=await fetch(SUPABASE_FUNCTION,{method:'POST',headers:{'Content-Ty
 let data;try{data=await response.json();}catch{throw new Error('The server returned an unreadable response.');}
 if(!response.ok)throw new Error(data.error||`Server error (${response.status})`);
 if(thisLoad!==loadToken)return;
-if(!data.audio_url)throw new Error('Audio URL was not returned for this transcription.');
+if(data.audio_url){player.src=data.audio_url;player.load();}
+else{$('audioMessage').textContent='Audio is not available for this transcription. You can still practise and compare your typing.';}
 if(typeof data.master_passage!=='string'||!data.master_passage.trim())throw new Error('The original passage is missing in the Supabase response.');
 currentMasterPassage=data.master_passage.trim();window.currentMasterPassage=currentMasterPassage;
-player.src=data.audio_url;player.load();$('audioMessage').textContent='Audio and original passage loaded. Press Start when you are ready.';$('audioPath').textContent=data.title||`KC-V${v} · Transcription ${local}`;
+$('audioMessage').textContent='Audio and original passage loaded. Press Start when you are ready.';$('audioPath').textContent=data.title||`KC-V${v} · Transcription ${local}`;
 }catch(error){if(thisLoad!==loadToken)return;console.error('Dictation loading error:',error);$('audioMessage').textContent=`Could not load this transcription: ${error.message}`;$('audioPath').textContent='Check that this transcription has a row in Supabase and that audio_path points to a file in the dictation-audio bucket.';}
 }
 function getWords(text){return text.trim()?text.trim().split(/\s+/):[];}
